@@ -66,7 +66,7 @@
           </div>
 
           <p class="notice notice-info" id="authNote">
-            This is a demo sign-in, not a real cloud account. Your password is never stored or checked, and everything you save stays in this browser only.
+            Create an account or sign in. Your account is saved securely online and your password is stored only in scrambled (hashed) form. Saved places and trips stay in this browser. You can also try the demo account below.
           </p>
 
           <!-- Sign in -->
@@ -78,9 +78,9 @@
                 <input type="email" id="signinEmail" name="email" autocomplete="email" required>
               </div>
               <div class="field">
-                <label for="signinPassword">Demo password</label>
-                <input type="password" id="signinPassword" name="password" autocomplete="off" minlength="6" required aria-describedby="signinPwHint">
-                <p class="hint" id="signinPwHint">At least 6 characters. Any password works in this demo.</p>
+                <label for="signinPassword">Password</label>
+                <input type="password" id="signinPassword" name="password" autocomplete="current-password" minlength="6" required aria-describedby="signinPwHint">
+                <p class="hint" id="signinPwHint">The password you chose when you created your account.</p>
               </div>
               <button type="submit" class="btn btn-primary btn-block">Sign in</button>
             </form>
@@ -99,9 +99,9 @@
                 <input type="email" id="signupEmail" name="email" autocomplete="email" required>
               </div>
               <div class="field">
-                <label for="signupPassword">Demo password</label>
-                <input type="password" id="signupPassword" name="password" autocomplete="off" minlength="6" required aria-describedby="signupPwHint">
-                <p class="hint" id="signupPwHint">At least 6 characters. Don't reuse a real password.</p>
+                <label for="signupPassword">Password</label>
+                <input type="password" id="signupPassword" name="password" autocomplete="new-password" minlength="6" required aria-describedby="signupPwHint">
+                <p class="hint" id="signupPwHint">At least 6 characters.</p>
               </div>
               <button type="submit" class="btn btn-primary btn-block">Create account</button>
             </form>
@@ -336,7 +336,7 @@
       <div class="page-head">
         <div>
           <h1 id="accountTitle" tabindex="-1">Account</h1>
-          <p class="lead">A demo profile stored only in this browser.</p>
+          <p class="lead">Your account. Saved places and trips are kept in this browser.</p>
         </div>
       </div>
 
@@ -344,8 +344,8 @@
         <section class="card" aria-labelledby="profileTitle">
           <h2 id="profileTitle">Profile</h2>
           <dl class="kv" id="profileList"></dl>
-          <p class="notice notice-info">This is not a real cloud account. No password is stored.</p>
-          <button type="button" class="btn btn-danger" id="btnDeleteData">Delete my demo data</button>
+          <p class="notice notice-info">Your sign-in is stored online. Saved places, trips and fare history stay in this browser only.</p>
+          <button type="button" class="btn btn-danger" id="btnDeleteData">Delete my saved data from this browser</button>
         </section>
 
         <section class="card card-wide" aria-labelledby="fareTitle">

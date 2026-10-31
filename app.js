@@ -625,22 +625,60 @@ function startSession(profile, message) {
 
 function validEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
+/* ---- Talking to the server (the /api folder, which uses MySQL) ---- */
+
+// Sends JSON to the server. Always resolves to { ok: true/false, data: {...} }, never throws.
+function apiPost(path, data) {
+  return fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(data)
+  }).then(function (res) {
+    return res.json().catch(function () { return {}; }).then(function (json) {
+      return { ok: res.ok, data: json || {} };
+    });
+  }).catch(function () {
+    return { ok: false, data: { error: "Could not reach the server. Check your internet connection." } };
+  });
+}
+
+function setBusy(btn, busy) {
+  if (!btn) { return; }
+  btn.disabled = !!busy;
+  btn.setAttribute("aria-busy", busy ? "true" : "false");
+}
+
+// After the server confirms who the user is, open their profile.
+// Saved places and trips still live in this browser (only the account is in MySQL).
+function startServerSession(user, message) {
+  var profile = loadProfile(user.email) || newProfile(user.name, user.email, false);
+  profile.name = user.name;
+  profile.demo = false;
+  startSession(profile, message);
+}
+
 function handleSignin(ev) {
   ev.preventDefault();
   var email = $("#signinEmail").value.trim();
   var pw = $("#signinPassword").value;
   var errors = [];
   if (!validEmail(email)) { errors.push({ id: "signinEmail", msg: "Enter a valid email address, for example name@example.com." }); }
-  if (pw.length < 6) { errors.push({ id: "signinPassword", msg: "Enter a demo password of at least 6 characters." }); }
+  if (pw.length < 6) { errors.push({ id: "signinPassword", msg: "Enter your password (at least 6 characters)." }); }
   if (renderErrors($("#signinErrors"), errors, "Fix these before signing in:")) { return; }
-  $("#signinPassword").value = "";          // the password is never stored or checked
-  var existing = loadProfile(email);
-  if (existing) {
-    startSession(existing, "Signed in on this device.");
-  } else {
-    var name = email.split("@")[0];
-    startSession(newProfile(name, email, false), "No saved profile found for this email on this device, so a new demo profile was created.");
-  }
+
+  // Ask the server (MySQL) to check the email and password.
+  var btn = ev.target.querySelector('button[type="submit"]');
+  setBusy(btn, true);
+  apiPost("/api/login", { email: email, password: pw }).then(function (r) {
+    setBusy(btn, false);
+    if (!r.ok) {
+      renderErrors($("#signinErrors"), [{ id: "signinPassword", msg: r.data.error || "Could not sign in. Please try again." }], "Could not sign in:");
+      return;
+    }
+    $("#signinPassword").value = "";
+    startServerSession(r.data.user, "Signed in. Welcome back, " + r.data.user.name + ".");
+  });
 }
 
 function handleSignup(ev) {
@@ -651,16 +689,21 @@ function handleSignup(ev) {
   var errors = [];
   if (!name) { errors.push({ id: "signupName", msg: "Enter your name." }); }
   if (!validEmail(email)) { errors.push({ id: "signupEmail", msg: "Enter a valid email address, for example name@example.com." }); }
-  if (pw.length < 6) { errors.push({ id: "signupPassword", msg: "Enter a demo password of at least 6 characters." }); }
+  if (pw.length < 6) { errors.push({ id: "signupPassword", msg: "Choose a password of at least 6 characters." }); }
   if (renderErrors($("#signupErrors"), errors, "Fix these before creating your account:")) { return; }
-  $("#signupPassword").value = "";
-  var existing = loadProfile(email);
-  if (existing) {
-    existing.name = name;
-    startSession(existing, "A demo profile for this email already exists on this device, so you were signed in to it.");
-  } else {
-    startSession(newProfile(name, email, false), "Demo account created on this device.");
-  }
+
+  // Ask the server to save the new account in MySQL.
+  var btn = ev.target.querySelector('button[type="submit"]');
+  setBusy(btn, true);
+  apiPost("/api/register", { name: name, email: email, password: pw }).then(function (r) {
+    setBusy(btn, false);
+    if (!r.ok) {
+      renderErrors($("#signupErrors"), [{ id: "signupEmail", msg: r.data.error || "Could not create the account. Please try again." }], "Could not create your account:");
+      return;
+    }
+    $("#signupPassword").value = "";
+    startServerSession(r.data.user, "Account created. Welcome, " + r.data.user.name + ".");
+  });
 }
 
 function handleDemo() {
@@ -669,6 +712,7 @@ function handleDemo() {
 }
 
 function signOut() {
+  apiPost("/api/logout", {});               // removes the login cookie on the server side
   store.remove("session");
   state.profile = null;
   state.result = null;
@@ -1597,7 +1641,7 @@ function renderAccount() {
   $("#profileList").innerHTML =
     "<dt>Name</dt><dd>" + esc(p.name) + "</dd>" +
     "<dt>Email</dt><dd>" + esc(p.email) + "</dd>" +
-    "<dt>Type</dt><dd>" + (p.demo ? "Demo account" : "Local demo profile") + "</dd>" +
+    "<dt>Type</dt><dd>" + (p.demo ? "Demo account" : "Registered account") + "</dd>" +
     "<dt>Created</dt><dd>" + esc(new Date(p.createdAt).toLocaleDateString("en-IN", { dateStyle: "medium" })) + "</dd>" +
     "<dt>Saved</dt><dd>" + esc(plural(p.places.length, "place") + ", " + plural(p.trips.length, "trip")) + "</dd>";
   $("#fareTable tbody").innerHTML = p.fares.length ? p.fares.map(function (f) {
@@ -1607,8 +1651,9 @@ function renderAccount() {
 }
 
 function deleteDemoData() {
-  if (!window.confirm("Delete all demo data for this profile from this browser and sign out? This can't be undone.")) { return; }
+  if (!window.confirm("Delete the saved places, trips and fare history for this profile from this browser and sign out? Your account itself is kept. This can't be undone.")) { return; }
   store.remove(profileKey(state.profile.email));
+  apiPost("/api/logout", {});
   store.remove("session");
   state.profile = null;
   state.result = null;
@@ -1695,15 +1740,22 @@ function init() {
   // Account
   $("#btnDeleteData").addEventListener("click", deleteDemoData);
 
-  // Restore an earlier session on this device
+  // Restore an earlier session.
+  // The local demo account is restored from this browser; real accounts are checked with the server.
   var email = store.get("session", null);
   var profile = email ? loadProfile(email) : null;
-  if (profile) {
+  if (profile && profile.demo) {
     state.profile = profile;
     $("#mainNav").hidden = false;
     showScreen("home");
   } else {
     showScreen("auth");
+    fetch("/api/me", { credentials: "same-origin", cache: "no-store" })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.user && !state.profile) { startServerSession(data.user, ""); }
+      })
+      .catch(function () { /* no server or not signed in: stay on the sign-in screen */ });
   }
 }
 

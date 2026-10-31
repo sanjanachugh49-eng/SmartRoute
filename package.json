@@ -1,0 +1,11 @@
+{
+  "name": "smart-route",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SmartRoute - group-aware journey planner with MySQL login",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.11.0"
+  }
+}
